@@ -21,7 +21,8 @@ SOURCES = [
     # América Latina
     {"region": "ARGENTINA", "role": "Presidente", "author": "Javier Milei (@JMilei)", "url": "https://nitter.privacydev.net/JMilei/rss"},
     {"region": "BRASIL", "role": "Presidente", "author": "Lula da Silva (@LulaOficial)", "url": "https://nitter.privacydev.net/LulaOficial/rss"},
-    {"region": "COLOMBIA", "role": "Presidente", "author": "Gustavo Petro (@petrogustavo)", "url": "https://nitter.privacydev.net/petrogustavo/rss"},
+    {"region": "COLOMBIA", "role": "Presidente", "author": "Abelardo de la Espriella (@DELAESPRIELLAE)", "url": "https://nitter.privacydev.net/DELAESPRIELLAE/rss"},
+    {"region": "PERÚ", "role": "Presidenta", "author": "Keiko Fujimori (@KeikoFujimori)", "url": "https://nitter.privacydev.net/KeikoFujimori/rss"},
     {"region": "CHILE", "role": "Presidente", "author": "Gabriel Boric (@GabrielBoric)", "url": "https://nitter.privacydev.net/GabrielBoric/rss"},
     {"region": "EL SALVADOR", "role": "Presidente", "author": "Nayib Bukele (@nayibbukele)", "url": "https://nitter.privacydev.net/nayibbukele/rss"},
     {"region": "GUATEMALA", "role": "Presidente", "author": "Bernardo Arévalo (@BArevalodeLeon)", "url": "https://nitter.privacydev.net/BArevalodeLeon/rss"},
