@@ -43,9 +43,12 @@ SOURCES = [
 # ================= FILTRO DIPLOMÁTICO MULTILINGÜE =================
 KEYWORDS_REGEX = re.compile(
     r"\b("
+    # México y gentilicios (ES / EN / FR)
     r"m[eé]xic\w*|mexican\w*|"
+    # Presidencia de México
     r"claudia\s*sheinbaum|sheinbaum|"
-    r"juan\s*ram[oó]n\s*de\s*la\s*fuente|de\s*la\s*fuente|"
+    # Canciller Roberto Velasco y referencias diplomáticas
+    r"roberto\s*velasco|velasco\s*[aá]lvarez|@r_velascoa|"
     r"canciller\s*mexican\w*|canciller[ií]a\s*mexican\w*|"
     r"mexican\s*foreign\s*minister|foreign\s*secretary\s*of\s*mexico|"
     r"secretar[ií]a\s*de\s*relaciones\s*exteriores|@SRE_mx"
@@ -72,67 +75,3 @@ def clean_html(raw_html):
 
 def send_telegram(region, role, author, text, link):
     message = (
-        f"🌐 <b>[GreciaWorldwide - {region}]</b>\n"
-        f"🏛 <b>Cargo:</b> {role}\n"
-        f"👤 <b>Emisor:</b> {author}\n\n"
-        f"{html.escape(text)}\n\n"
-        f"🔗 <a href='{link}'>Ver declaración original</a>"
-    )
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "HTML",
-        "disable_web_page_preview": False
-    }
-    try:
-        requests.post(url, json=payload, timeout=10)
-    except Exception as e:
-        print(f"Error al enviar a Telegram: {e}")
-
-def main():
-    state = load_state()
-    is_initial_run = (len(state) == 0)
-
-    for source in SOURCES:
-        region = source["region"]
-        role = source["role"]
-        name = source["author"]
-        url = source["url"]
-        last_id = state.get(name)
-
-        try:
-            feed = feedparser.parse(url, request_headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-        except Exception:
-            continue
-
-        if not feed.entries:
-            continue
-
-        if is_initial_run or last_id is None:
-            state[name] = feed.entries[0].get("id", feed.entries[0].link)
-            continue
-
-        new_entries = []
-        for entry in feed.entries:
-            entry_id = entry.get("id", entry.link)
-            if entry_id == last_id:
-                break
-            new_entries.append(entry)
-
-        for entry in reversed(new_entries):
-            raw_title = entry.get("title", "")
-            raw_summary = entry.get("summary", "")
-            full_text = clean_html(f"{raw_title} {raw_summary}")
-
-            if KEYWORDS_REGEX.search(full_text):
-                preview = full_text[:400] + ("..." if len(full_text) > 400 else "")
-                send_telegram(region, role, name, preview, entry.link)
-
-        if new_entries:
-            state[name] = new_entries[0].get("id", new_entries[0].link)
-
-    save_state(state)
-
-if __name__ == "__main__":
-    main()
