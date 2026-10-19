@@ -18,21 +18,37 @@ SOURCES = [
     {"region": "CANADÁ", "role": "Primer Ministro", "author": "Mark Carney (@MarkJCarney)", "url": "https://nitter.privacydev.net/MarkJCarney/rss"},
     {"region": "CANADÁ", "role": "Canciller", "author": "Anita Anand (@AnitaAnandMP)", "url": "https://nitter.privacydev.net/AnitaAnandMP/rss"},
 
-    # América Latina
+    # América Latina y el Caribe
     {"region": "ARGENTINA", "role": "Presidente", "author": "Javier Milei (@JMilei)", "url": "https://nitter.privacydev.net/JMilei/rss"},
     {"region": "BRASIL", "role": "Presidente", "author": "Lula da Silva (@LulaOficial)", "url": "https://nitter.privacydev.net/LulaOficial/rss"},
     {"region": "COLOMBIA", "role": "Presidente", "author": "Abelardo de la Espriella (@DELAESPRIELLAE)", "url": "https://nitter.privacydev.net/DELAESPRIELLAE/rss"},
     {"region": "PERÚ", "role": "Presidenta", "author": "Keiko Fujimori (@KeikoFujimori)", "url": "https://nitter.privacydev.net/KeikoFujimori/rss"},
     {"region": "CHILE", "role": "Presidente", "author": "José Antonio Kast (@joseantoniokast)", "url": "https://nitter.privacydev.net/joseantoniokast/rss"},
+    {"region": "BOLIVIA", "role": "Presidente", "author": "Rodrigo Paz (@Rodrigo_PazP)", "url": "https://nitter.privacydev.net/Rodrigo_PazP/rss"},
+    {"region": "ECUADOR", "role": "Presidente", "author": "Daniel Noboa (@DanielNoboaOk)", "url": "https://nitter.privacydev.net/DanielNoboaOk/rss"},
+    {"region": "URUGUAY", "role": "Presidente", "author": "Yamandú Orsi (@OrsiYamandu)", "url": "https://nitter.privacydev.net/OrsiYamandu/rss"},
+    {"region": "PANAMÁ", "role": "Presidente", "author": "José Raúl Mulino (@JoseRaulMulino)", "url": "https://nitter.privacydev.net/JoseRaulMulino/rss"},
+    {"region": "PARAGUAY", "role": "Presidente", "author": "Santiago Peña (@SantiPenap)", "url": "https://nitter.privacydev.net/SantiPenap/rss"},
+    {"region": "REP. DOMINICANA", "role": "Presidente", "author": "Luis Abinader (@luisabinader)", "url": "https://nitter.privacydev.net/luisabinader/rss"},
+    {"region": "COSTA RICA", "role": "Presidenta", "author": "Laura Fernández (@laurapresi2026)", "url": "https://nitter.privacydev.net/laurapresi2026/rss"},
+    {"region": "HONDURAS", "role": "Presidente", "author": "Nasry Asfura (@titoasfura)", "url": "https://nitter.privacydev.net/titoasfura/rss"},
     {"region": "EL SALVADOR", "role": "Presidente", "author": "Nayib Bukele (@nayibbukele)", "url": "https://nitter.privacydev.net/nayibbukele/rss"},
     {"region": "GUATEMALA", "role": "Presidente", "author": "Bernardo Arévalo (@BArevalodeLeon)", "url": "https://nitter.privacydev.net/BArevalodeLeon/rss"},
 
-    # Europa y Potencias
+    # Europa
+    {"region": "ITALIA", "role": "Presidenta del Consejo", "author": "Giorgia Meloni (@GiorgiaMeloni)", "url": "https://nitter.privacydev.net/GiorgiaMeloni/rss"},
+    {"region": "UNIÓN EUROPEA", "role": "Presidenta Comisión", "author": "Ursula von der Leyen (@vonderleyen)", "url": "https://nitter.privacydev.net/vonderleyen/rss"},
     {"region": "ESPAÑA", "role": "Presidente del Gobierno", "author": "Pedro Sánchez (@sanchezcastejon)", "url": "https://nitter.privacydev.net/sanchezcastejon/rss"},
     {"region": "FRANCIA", "role": "Presidente", "author": "Emmanuel Macron (@EmmanuelMacron)", "url": "https://nitter.privacydev.net/EmmanuelMacron/rss"},
     {"region": "ALEMANIA", "role": "Canciller Federal", "author": "Friedrich Merz (@_FriedrichMerz)", "url": "https://nitter.privacydev.net/_FriedrichMerz/rss"},
     {"region": "REINO UNIDO", "role": "Primer Ministro", "author": "Andy Burnham (@AndyBurnhamGM)", "url": "https://nitter.privacydev.net/AndyBurnhamGM/rss"},
     {"region": "UCRANIA", "role": "Presidente", "author": "Volodymyr Zelenskyy (@ZelenskyyUa)", "url": "https://nitter.privacydev.net/ZelenskyyUa/rss"},
+    {"region": "RUSIA", "role": "Presidencia", "author": "Kremlin (@KremlinRussia_E)", "url": "https://nitter.privacydev.net/KremlinRussia_E/rss"},
+
+    # Asia y Potencias
+    {"region": "CHINA", "role": "Cancillería / Portavocía", "author": "MFA China (@MFA_China)", "url": "https://nitter.privacydev.net/MFA_China/rss"},
+    {"region": "JAPÓN", "role": "Primera Ministra", "author": "Sanae Takaichi (@takaichi_sanae)", "url": "https://nitter.privacydev.net/takaichi_sanae/rss"},
+    {"region": "COREA DEL SUR", "role": "Presidente", "author": "Lee Jae-myung (@Jaemyung_Lee)", "url": "https://nitter.privacydev.net/Jaemyung_Lee/rss"},
     {"region": "INDIA", "role": "Primer Ministro", "author": "Narendra Modi (@narendramodi)", "url": "https://nitter.privacydev.net/narendramodi/rss"},
 
     # Organismos Multilaterales
