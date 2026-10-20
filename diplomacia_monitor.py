@@ -44,6 +44,7 @@ SOURCES = [
     {"region": "REINO UNIDO", "role": "Primer Ministro", "author": "Andy Burnham (@AndyBurnhamGM)", "url": "https://nitter.privacydev.net/AndyBurnhamGM/rss"},
     {"region": "UCRANIA", "role": "Presidente", "author": "Volodymyr Zelenskyy (@ZelenskyyUa)", "url": "https://nitter.privacydev.net/ZelenskyyUa/rss"},
     {"region": "RUSIA", "role": "Presidencia", "author": "Kremlin (@KremlinRussia_E)", "url": "https://nitter.privacydev.net/KremlinRussia_E/rss"},
+    {"region": "RUSIA", "role": "Cancillería en Español", "author": "Cancillería Rusia (@mae_rusia)", "url": "https://nitter.privacydev.net/mae_rusia/rss"},
 
     # Asia y Potencias
     {"region": "CHINA", "role": "Cancillería / Portavocía", "author": "MFA China (@MFA_China)", "url": "https://nitter.privacydev.net/MFA_China/rss"},
@@ -53,7 +54,18 @@ SOURCES = [
 
     # Organismos Multilaterales
     {"region": "ONU", "role": "Secretario General", "author": "António Guterres (@antonioguterres)", "url": "https://nitter.privacydev.net/antonioguterres/rss"},
-    {"region": "OEA", "role": "Secretario General", "author": "Albert Ramdin (@AlbertRamdin)", "url": "https://nitter.privacydev.net/AlbertRamdin/rss"}
+    {"region": "OEA", "role": "Secretario General", "author": "Albert Ramdin (@AlbertRamdin)", "url": "https://nitter.privacydev.net/AlbertRamdin/rss"},
+
+    # Embajadas Extranjeras en México
+    {"region": "EMBAJADA EE.UU. EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada EE.UU. en México (@USEmbassyMEX)", "url": "https://nitter.privacydev.net/USEmbassyMEX/rss"},
+    {"region": "EMBAJADA CANADÁ EN MÉXICO", "role": "Misión Diplomática", "author": "Canadá en México (@EmbCanMexico)", "url": "https://nitter.privacydev.net/EmbCanMexico/rss"},
+    {"region": "EMBAJADA ESPAÑA EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada España en México (@EmbEspMex)", "url": "https://nitter.privacydev.net/EmbEspMex/rss"},
+    {"region": "EMBAJADA FRANCIA EN MÉXICO", "role": "Misión Diplomática", "author": "Francia en México (@FranciaenMexico)", "url": "https://nitter.privacydev.net/FranciaenMexico/rss"},
+    {"region": "EMBAJADA ALEMANIA EN MÉXICO", "role": "Misión Diplomática", "author": "Alemania en México (@AlemaniaenMex)", "url": "https://nitter.privacydev.net/AlemaniaenMex/rss"},
+    {"region": "EMBAJADA REINO UNIDO EN MÉXICO", "role": "Misión Diplomática", "author": "UK in Mexico (@UKinMexico)", "url": "https://nitter.privacydev.net/UKinMexico/rss"},
+    {"region": "DELEGACIÓN UE EN MÉXICO", "role": "Misión Diplomática", "author": "Unión Europea en México (@UEenMexico)", "url": "https://nitter.privacydev.net/UEenMexico/rss"},
+    {"region": "EMBAJADA CHINA EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada de China en México (@EmbChinaMex)", "url": "https://nitter.privacydev.net/EmbChinaMex/rss"},
+    {"region": "EMBAJADA RUSIA EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada de Rusia en México (@EmbRusiaMexico)", "url": "https://nitter.privacydev.net/EmbRusiaMexico/rss"}
 ]
 
 # ================= FILTRO DIPLOMÁTICO MULTILINGÜE =================
@@ -67,7 +79,9 @@ KEYWORDS_REGEX = re.compile(
     r"roberto\s*velasco|velasco\s*[aá]lvarez|@r_velascoa|"
     r"canciller\s*mexican\w*|canciller[ií]a\s*mexican\w*|"
     r"mexican\s*foreign\s*minister|foreign\s*secretary\s*of\s*mexico|"
-    r"secretar[ií]a\s*de\s*relaciones\s*exteriores|@SRE_mx"
+    r"secretar[ií]a\s*de\s*relaciones\s*exteriores|@SRE_mx|"
+    # Cárteles y crimen organizado
+    r"c[aá]rtel\w*"
     r")\b",
     re.IGNORECASE
 )
