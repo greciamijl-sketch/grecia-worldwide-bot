@@ -1,86 +1,88 @@
+import asyncio
 import json
 import os
 import re
 import html
-import feedparser
 import requests
+from twikit import Client
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-STATE_FILE = "last_seen_diplomacy.json"
+X_USER = os.environ.get("X_USERNAME")
+X_PASS = os.environ.get("X_PASSWORD")
+X_MAIL = os.environ.get("X_EMAIL")
 
-# ================= DIRECTORIO DIPLOMÁTICO GLOBAL =================
+STATE_FILE = "last_seen_diplomacy.json"
+COOKIES_FILE = "cookies_worldwide.json"
+
+# ================= DIRECTORIO DIPLOMÁTICO GLOBAL (HANDLES DIRECTOS) =================
 SOURCES = [
     # América del Norte
-    {"region": "EE.UU.", "role": "Presidente", "author": "POTUS (@POTUS)", "url": "https://nitter.privacydev.net/POTUS/rss"},
-    {"region": "EE.UU.", "role": "Casa Blanca", "author": "White House (@WhiteHouse)", "url": "https://nitter.privacydev.net/WhiteHouse/rss"},
-    {"region": "EE.UU.", "role": "Secretario de Estado", "author": "Marco Rubio (@marcorubio)", "url": "https://nitter.privacydev.net/marcorubio/rss"},
-    {"region": "CANADÁ", "role": "Primer Ministro", "author": "Mark Carney (@MarkJCarney)", "url": "https://nitter.privacydev.net/MarkJCarney/rss"},
-    {"region": "CANADÁ", "role": "Canciller", "author": "Anita Anand (@AnitaAnandMP)", "url": "https://nitter.privacydev.net/AnitaAnandMP/rss"},
+    {"region": "EE.UU.", "role": "Presidente", "author": "POTUS", "handle": "POTUS"},
+    {"region": "EE.UU.", "role": "Casa Blanca", "author": "White House", "handle": "WhiteHouse"},
+    {"region": "EE.UU.", "role": "Secretario de Estado", "author": "Marco Rubio", "handle": "marcorubio"},
+    {"region": "CANADÁ", "role": "Primer Ministro", "author": "Mark Carney", "handle": "MarkJCarney"},
+    {"region": "CANADÁ", "role": "Canciller", "author": "Anita Anand", "handle": "AnitaAnandMP"},
 
     # América Latina y el Caribe
-    {"region": "ARGENTINA", "role": "Presidente", "author": "Javier Milei (@JMilei)", "url": "https://nitter.privacydev.net/JMilei/rss"},
-    {"region": "BRASIL", "role": "Presidente", "author": "Lula da Silva (@LulaOficial)", "url": "https://nitter.privacydev.net/LulaOficial/rss"},
-    {"region": "COLOMBIA", "role": "Presidente", "author": "Abelardo de la Espriella (@DELAESPRIELLAE)", "url": "https://nitter.privacydev.net/DELAESPRIELLAE/rss"},
-    {"region": "PERÚ", "role": "Presidenta", "author": "Keiko Fujimori (@KeikoFujimori)", "url": "https://nitter.privacydev.net/KeikoFujimori/rss"},
-    {"region": "CHILE", "role": "Presidente", "author": "José Antonio Kast (@joseantoniokast)", "url": "https://nitter.privacydev.net/joseantoniokast/rss"},
-    {"region": "BOLIVIA", "role": "Presidente", "author": "Rodrigo Paz (@Rodrigo_PazP)", "url": "https://nitter.privacydev.net/Rodrigo_PazP/rss"},
-    {"region": "ECUADOR", "role": "Presidente", "author": "Daniel Noboa (@DanielNoboaOk)", "url": "https://nitter.privacydev.net/DanielNoboaOk/rss"},
-    {"region": "URUGUAY", "role": "Presidente", "author": "Yamandú Orsi (@OrsiYamandu)", "url": "https://nitter.privacydev.net/OrsiYamandu/rss"},
-    {"region": "PANAMÁ", "role": "Presidente", "author": "José Raúl Mulino (@JoseRaulMulino)", "url": "https://nitter.privacydev.net/JoseRaulMulino/rss"},
-    {"region": "PARAGUAY", "role": "Presidente", "author": "Santiago Peña (@SantiPenap)", "url": "https://nitter.privacydev.net/SantiPenap/rss"},
-    {"region": "REP. DOMINICANA", "role": "Presidente", "author": "Luis Abinader (@luisabinader)", "url": "https://nitter.privacydev.net/luisabinader/rss"},
-    {"region": "COSTA RICA", "role": "Presidenta", "author": "Laura Fernández (@laurapresi2026)", "url": "https://nitter.privacydev.net/laurapresi2026/rss"},
-    {"region": "HONDURAS", "role": "Presidente", "author": "Nasry Asfura (@titoasfura)", "url": "https://nitter.privacydev.net/titoasfura/rss"},
-    {"region": "EL SALVADOR", "role": "Presidente", "author": "Nayib Bukele (@nayibbukele)", "url": "https://nitter.privacydev.net/nayibbukele/rss"},
-    {"region": "GUATEMALA", "role": "Presidente", "author": "Bernardo Arévalo (@BArevalodeLeon)", "url": "https://nitter.privacydev.net/BArevalodeLeon/rss"},
+    {"region": "ARGENTINA", "role": "Presidente", "author": "Javier Milei", "handle": "JMilei"},
+    {"region": "BRASIL", "role": "Presidente", "author": "Lula da Silva", "handle": "LulaOficial"},
+    {"region": "COLOMBIA", "role": "Presidente", "author": "Abelardo de la Espriella", "handle": "DELAESPRIELLAE"},
+    {"region": "PERÚ", "role": "Presidenta", "author": "Keiko Fujimori", "handle": "KeikoFujimori"},
+    {"region": "CHILE", "role": "Presidente", "author": "José Antonio Kast", "handle": "joseantoniokast"},
+    {"region": "BOLIVIA", "role": "Presidente", "author": "Rodrigo Paz", "handle": "Rodrigo_PazP"},
+    {"region": "ECUADOR", "role": "Presidente", "author": "Daniel Noboa", "handle": "DanielNoboaOk"},
+    {"region": "URUGUAY", "role": "Presidente", "author": "Yamandú Orsi", "handle": "OrsiYamandu"},
+    {"region": "PANAMÁ", "role": "Presidente", "author": "José Raúl Mulino", "handle": "JoseRaulMulino"},
+    {"region": "PARAGUAY", "role": "Presidente", "author": "Santiago Peña", "handle": "SantiPenap"},
+    {"region": "REP. DOMINICANA", "role": "Presidente", "author": "Luis Abinader", "handle": "luisabinader"},
+    {"region": "COSTA RICA", "role": "Presidenta", "author": "Laura Fernández", "handle": "laurapresi2026"},
+    {"region": "HONDURAS", "role": "Presidente", "author": "Nasry Asfura", "handle": "titoasfura"},
+    {"region": "EL SALVADOR", "role": "Presidente", "author": "Nayib Bukele", "handle": "nayibbukele"},
+    {"region": "GUATEMALA", "role": "Presidente", "author": "Bernardo Arévalo", "handle": "BArevalodeLeon"},
 
     # Europa
-    {"region": "ITALIA", "role": "Presidenta del Consejo", "author": "Giorgia Meloni (@GiorgiaMeloni)", "url": "https://nitter.privacydev.net/GiorgiaMeloni/rss"},
-    {"region": "UNIÓN EUROPEA", "role": "Presidenta Comisión", "author": "Ursula von der Leyen (@vonderleyen)", "url": "https://nitter.privacydev.net/vonderleyen/rss"},
-    {"region": "ESPAÑA", "role": "Presidente del Gobierno", "author": "Pedro Sánchez (@sanchezcastejon)", "url": "https://nitter.privacydev.net/sanchezcastejon/rss"},
-    {"region": "FRANCIA", "role": "Presidente", "author": "Emmanuel Macron (@EmmanuelMacron)", "url": "https://nitter.privacydev.net/EmmanuelMacron/rss"},
-    {"region": "ALEMANIA", "role": "Canciller Federal", "author": "Friedrich Merz (@_FriedrichMerz)", "url": "https://nitter.privacydev.net/_FriedrichMerz/rss"},
-    {"region": "REINO UNIDO", "role": "Primer Ministro", "author": "Andy Burnham (@AndyBurnhamGM)", "url": "https://nitter.privacydev.net/AndyBurnhamGM/rss"},
-    {"region": "UCRANIA", "role": "Presidente", "author": "Volodymyr Zelenskyy (@ZelenskyyUa)", "url": "https://nitter.privacydev.net/ZelenskyyUa/rss"},
-    {"region": "RUSIA", "role": "Presidencia", "author": "Kremlin (@KremlinRussia_E)", "url": "https://nitter.privacydev.net/KremlinRussia_E/rss"},
-    {"region": "RUSIA", "role": "Cancillería en Español", "author": "Cancillería Rusia (@mae_rusia)", "url": "https://nitter.privacydev.net/mae_rusia/rss"},
+    {"region": "ITALIA", "role": "Presidenta del Consejo", "author": "Giorgia Meloni", "handle": "GiorgiaMeloni"},
+    {"region": "UNIÓN EUROPEA", "role": "Presidenta Comisión", "author": "Ursula von der Leyen", "handle": "vonderleyen"},
+    {"region": "ESPAÑA", "role": "Presidente del Gobierno", "author": "Pedro Sánchez", "handle": "sanchezcastejon"},
+    {"region": "FRANCIA", "role": "Presidente", "author": "Emmanuel Macron", "handle": "EmmanuelMacron"},
+    {"region": "ALEMANIA", "role": "Canciller Federal", "author": "Friedrich Merz", "handle": "_FriedrichMerz"},
+    {"region": "REINO UNIDO", "role": "Primer Ministro", "author": "Andy Burnham", "handle": "AndyBurnhamGM"},
+    {"region": "UCRANIA", "role": "Presidente", "author": "Volodymyr Zelenskyy", "handle": "ZelenskyyUa"},
+    {"region": "RUSIA", "role": "Presidencia", "author": "Kremlin", "handle": "KremlinRussia_E"},
+    {"region": "RUSIA", "role": "Cancillería en Español", "author": "Cancillería Rusia", "handle": "mae_rusia"},
 
     # Asia y Potencias
-    {"region": "CHINA", "role": "Cancillería / Portavocía", "author": "MFA China (@MFA_China)", "url": "https://nitter.privacydev.net/MFA_China/rss"},
-    {"region": "JAPÓN", "role": "Primera Ministra", "author": "Sanae Takaichi (@takaichi_sanae)", "url": "https://nitter.privacydev.net/takaichi_sanae/rss"},
-    {"region": "COREA DEL SUR", "role": "Presidente", "author": "Lee Jae-myung (@Jaemyung_Lee)", "url": "https://nitter.privacydev.net/Jaemyung_Lee/rss"},
-    {"region": "INDIA", "role": "Primer Ministro", "author": "Narendra Modi (@narendramodi)", "url": "https://nitter.privacydev.net/narendramodi/rss"},
+    {"region": "CHINA", "role": "Cancillería / Portavocía", "author": "MFA China", "handle": "MFA_China"},
+    {"region": "JAPÓN", "role": "Primera Ministra", "author": "Sanae Takaichi", "handle": "takaichi_sanae"},
+    {"region": "COREA DEL SUR", "role": "Presidente", "author": "Lee Jae-myung", "handle": "Jaemyung_Lee"},
+    {"region": "INDIA", "role": "Primer Ministro", "author": "Narendra Modi", "handle": "narendramodi"},
 
     # Organismos Multilaterales
-    {"region": "ONU", "role": "Secretario General", "author": "António Guterres (@antonioguterres)", "url": "https://nitter.privacydev.net/antonioguterres/rss"},
-    {"region": "OEA", "role": "Secretario General", "author": "Albert Ramdin (@AlbertRamdin)", "url": "https://nitter.privacydev.net/AlbertRamdin/rss"},
+    {"region": "ONU", "role": "Secretario General", "author": "António Guterres", "handle": "antonioguterres"},
+    {"region": "OEA", "role": "Secretario General", "author": "Albert Ramdin", "handle": "AlbertRamdin"},
 
     # Embajadas Extranjeras en México
-    {"region": "EMBAJADA EE.UU. EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada EE.UU. en México (@USEmbassyMEX)", "url": "https://nitter.privacydev.net/USEmbassyMEX/rss"},
-    {"region": "EMBAJADA CANADÁ EN MÉXICO", "role": "Misión Diplomática", "author": "Canadá en México (@EmbCanMexico)", "url": "https://nitter.privacydev.net/EmbCanMexico/rss"},
-    {"region": "EMBAJADA ESPAÑA EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada España en México (@EmbEspMex)", "url": "https://nitter.privacydev.net/EmbEspMex/rss"},
-    {"region": "EMBAJADA FRANCIA EN MÉXICO", "role": "Misión Diplomática", "author": "Francia en México (@FranciaenMexico)", "url": "https://nitter.privacydev.net/FranciaenMexico/rss"},
-    {"region": "EMBAJADA ALEMANIA EN MÉXICO", "role": "Misión Diplomática", "author": "Alemania en México (@AlemaniaenMex)", "url": "https://nitter.privacydev.net/AlemaniaenMex/rss"},
-    {"region": "EMBAJADA REINO UNIDO EN MÉXICO", "role": "Misión Diplomática", "author": "UK in Mexico (@UKinMexico)", "url": "https://nitter.privacydev.net/UKinMexico/rss"},
-    {"region": "DELEGACIÓN UE EN MÉXICO", "role": "Misión Diplomática", "author": "Unión Europea en México (@UEenMexico)", "url": "https://nitter.privacydev.net/UEenMexico/rss"},
-    {"region": "EMBAJADA CHINA EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada de China en México (@EmbChinaMex)", "url": "https://nitter.privacydev.net/EmbChinaMex/rss"},
-    {"region": "EMBAJADA RUSIA EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada de Rusia en México (@EmbRusiaMexico)", "url": "https://nitter.privacydev.net/EmbRusiaMexico/rss"}
+    {"region": "EMBAJADA EE.UU. EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada EE.UU. en México", "handle": "USEmbassyMEX"},
+    {"region": "EMBAJADA CANADÁ EN MÉXICO", "role": "Misión Diplomática", "author": "Canadá en México", "handle": "EmbCanMexico"},
+    {"region": "EMBAJADA ESPAÑA EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada España en México", "handle": "EmbEspMex"},
+    {"region": "EMBAJADA FRANCIA EN MÉXICO", "role": "Misión Diplomática", "author": "Francia en México", "handle": "FranciaenMexico"},
+    {"region": "EMBAJADA ALEMANIA EN MÉXICO", "role": "Misión Diplomática", "author": "Alemania en México", "handle": "AlemaniaenMex"},
+    {"region": "EMBAJADA REINO UNIDO EN MÉXICO", "role": "Misión Diplomática", "author": "UK in Mexico", "handle": "UKinMexico"},
+    {"region": "DELEGACIÓN UE EN MÉXICO", "role": "Misión Diplomática", "author": "Unión Europea en México", "handle": "UEenMexico"},
+    {"region": "EMBAJADA CHINA EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada de China en México", "handle": "EmbChinaMex"},
+    {"region": "EMBAJADA RUSIA EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada de Rusia en México", "handle": "EmbRusiaMexico"}
 ]
 
 # ================= FILTRO DIPLOMÁTICO MULTILINGÜE =================
 KEYWORDS_REGEX = re.compile(
     r"\b("
-    # México y gentilicios (ES / EN / FR)
     r"m[eé]xic\w*|mexican\w*|"
-    # Presidencia de México
     r"claudia\s*sheinbaum|sheinbaum|"
-    # Canciller Roberto Velasco y referencias diplomáticas
     r"roberto\s*velasco|velasco\s*[aá]lvarez|@r_velascoa|"
     r"canciller\s*mexican\w*|canciller[ií]a\s*mexican\w*|"
     r"mexican\s*foreign\s*minister|foreign\s*secretary\s*of\s*mexico|"
     r"secretar[ií]a\s*de\s*relaciones\s*exteriores|@SRE_mx|"
-    # Cárteles y crimen organizado
     r"c[aá]rtel\w*"
     r")\b",
     re.IGNORECASE
@@ -121,73 +123,69 @@ def send_telegram(region, role, author, text, link):
         "disable_web_page_preview": False
     }
     try:
-        res = requests.post(url, json=payload, timeout=10)
-        if res.status_code == 200:
-            print(f"  ✉️ Alerta enviada con éxito a Telegram sobre {author}")
-        else:
-            print(f"  ❌ Telegram API error {res.status_code}: {res.text}")
+        requests.post(url, json=payload, timeout=10)
     except Exception as e:
-        print(f"  ❌ Error al enviar a Telegram: {e}")
+        print(f"Error al enviar a Telegram: {e}")
 
-def main():
+async def main():
     state = load_state()
     is_initial_run = (len(state) == 0)
 
-    print(f"=== INICIANDO MONITOREO: {len(SOURCES)} FUENTES DIPLOMÁTICAS ===")
-    if is_initial_run:
-        print("ℹ️ Corrida inicial: se memorizarán los últimos posts de cada cuenta.")
+    print(f"=== INICIANDO MONITOREO DIPLOMÁTICO: {len(SOURCES)} FUENTES ===")
+    
+    client = Client('en-US')
 
-    fuentes_exitosas = 0
-    fuentes_fallidas = 0
+    if os.path.exists(COOKIES_FILE):
+        print("Cargando sesión existente desde cookies...")
+        client.load_cookies(COOKIES_FILE)
+    else:
+        print("Iniciando sesión en X...")
+        await client.login(auth_info_1=X_USER, auth_info_2=X_MAIL, password=X_PASS)
+        client.save_cookies(COOKIES_FILE)
+        print("Sesión iniciada y cookies guardadas.")
 
     for source in SOURCES:
         region = source["region"]
         role = source["role"]
-        name = source["author"]
-        url = source["url"]
-        last_id = state.get(name)
+        author = source["author"]
+        handle = source["handle"]
+        last_id = state.get(handle)
 
         try:
-            feed = feedparser.parse(url, request_headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+            user = await client.get_user_by_screen_name(handle)
+            tweets = await user.get_tweets('Tweets', count=5)
+            print(f"✅ @{handle}: {len(tweets)} tuits obtenidos.")
         except Exception as e:
-            print(f"❌ Error de red en {name}: {e}")
-            fuentes_fallidas += 1
+            print(f"❌ Error al consultar @{handle}: {e}")
             continue
 
-        if not feed.entries:
-            print(f"⚠️ Sin datos (instancia caída o bloqueada): {name}")
-            fuentes_fallidas += 1
+        if not tweets:
             continue
-
-        fuentes_exitosas += 1
-        print(f"✅ Conectado: {name} ({len(feed.entries)} publicaciones disponibles)")
 
         if is_initial_run or last_id is None:
-            state[name] = feed.entries[0].get("id", feed.entries[0].link)
+            state[handle] = str(tweets[0].id)
             continue
 
-        new_entries = []
-        for entry in feed.entries:
-            entry_id = entry.get("id", entry.link)
-            if entry_id == last_id:
+        new_tweets = []
+        for t in tweets:
+            t_id = str(t.id)
+            if t_id == last_id:
                 break
-            new_entries.append(entry)
+            new_tweets.append(t)
 
-        for entry in reversed(new_entries):
-            raw_title = entry.get("title", "")
-            raw_summary = entry.get("summary", "")
-            full_text = clean_html(f"{raw_title} {raw_summary}")
-
+        for t in reversed(new_tweets):
+            full_text = clean_html(t.text)
             if KEYWORDS_REGEX.search(full_text):
-                print(f"🚨 COINCIDENCIA DETECTADA en {name}: {full_text[:80]}...")
+                print(f"🚨 Coincidencia encontrada en @{handle}: {full_text[:60]}")
+                t_link = f"https://x.com/{handle}/status/{t.id}"
                 preview = full_text[:400] + ("..." if len(full_text) > 400 else "")
-                send_telegram(region, role, name, preview, entry.link)
+                send_telegram(region, role, author, preview, t_link)
 
-        if new_entries:
-            state[name] = new_entries[0].get("id", new_entries[0].link)
+        if new_tweets:
+            state[handle] = str(new_tweets[0].id)
 
     save_state(state)
-    print(f"=== FIN DEL MONITOREO: {fuentes_exitosas} conectadas | {fuentes_fallidas} caídas ===")
+    print("=== FIN DEL MONITOREO ===")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
