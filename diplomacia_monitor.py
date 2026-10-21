@@ -8,82 +8,31 @@ from twikit import Client
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-X_USER = os.environ.get("X_USERNAME")
-X_PASS = os.environ.get("X_PASSWORD")
-X_MAIL = os.environ.get("X_EMAIL")
+X_AUTH_TOKEN = os.environ.get("X_AUTH_TOKEN")
+X_CT0 = os.environ.get("X_CT0")
 
-STATE_FILE = "last_seen_diplomacy.json"
-COOKIES_FILE = "cookies_worldwide.json"
+STATE_FILE = "last_seen_us.json"
 
-# ================= DIRECTORIO DIPLOMÁTICO GLOBAL (HANDLES DIRECTOS) =================
-SOURCES = [
-    # América del Norte
-    {"region": "EE.UU.", "role": "Presidente", "author": "POTUS", "handle": "POTUS"},
-    {"region": "EE.UU.", "role": "Casa Blanca", "author": "White House", "handle": "WhiteHouse"},
-    {"region": "EE.UU.", "role": "Secretario de Estado", "author": "Marco Rubio", "handle": "marcorubio"},
-    {"region": "CANADÁ", "role": "Primer Ministro", "author": "Mark Carney", "handle": "MarkJCarney"},
-    {"region": "CANADÁ", "role": "Canciller", "author": "Anita Anand", "handle": "AnitaAnandMP"},
-
-    # América Latina y el Caribe
-    {"region": "ARGENTINA", "role": "Presidente", "author": "Javier Milei", "handle": "JMilei"},
-    {"region": "BRASIL", "role": "Presidente", "author": "Lula da Silva", "handle": "LulaOficial"},
-    {"region": "COLOMBIA", "role": "Presidente", "author": "Abelardo de la Espriella", "handle": "DELAESPRIELLAE"},
-    {"region": "PERÚ", "role": "Presidenta", "author": "Keiko Fujimori", "handle": "KeikoFujimori"},
-    {"region": "CHILE", "role": "Presidente", "author": "José Antonio Kast", "handle": "joseantoniokast"},
-    {"region": "BOLIVIA", "role": "Presidente", "author": "Rodrigo Paz", "handle": "Rodrigo_PazP"},
-    {"region": "ECUADOR", "role": "Presidente", "author": "Daniel Noboa", "handle": "DanielNoboaOk"},
-    {"region": "URUGUAY", "role": "Presidente", "author": "Yamandú Orsi", "handle": "OrsiYamandu"},
-    {"region": "PANAMÁ", "role": "Presidente", "author": "José Raúl Mulino", "handle": "JoseRaulMulino"},
-    {"region": "PARAGUAY", "role": "Presidente", "author": "Santiago Peña", "handle": "SantiPenap"},
-    {"region": "REP. DOMINICANA", "role": "Presidente", "author": "Luis Abinader", "handle": "luisabinader"},
-    {"region": "COSTA RICA", "role": "Presidenta", "author": "Laura Fernández", "handle": "laurapresi2026"},
-    {"region": "HONDURAS", "role": "Presidente", "author": "Nasry Asfura", "handle": "titoasfura"},
-    {"region": "EL SALVADOR", "role": "Presidente", "author": "Nayib Bukele", "handle": "nayibbukele"},
-    {"region": "GUATEMALA", "role": "Presidente", "author": "Bernardo Arévalo", "handle": "BArevalodeLeon"},
-
-    # Europa
-    {"region": "ITALIA", "role": "Presidenta del Consejo", "author": "Giorgia Meloni", "handle": "GiorgiaMeloni"},
-    {"region": "UNIÓN EUROPEA", "role": "Presidenta Comisión", "author": "Ursula von der Leyen", "handle": "vonderleyen"},
-    {"region": "ESPAÑA", "role": "Presidente del Gobierno", "author": "Pedro Sánchez", "handle": "sanchezcastejon"},
-    {"region": "FRANCIA", "role": "Presidente", "author": "Emmanuel Macron", "handle": "EmmanuelMacron"},
-    {"region": "ALEMANIA", "role": "Canciller Federal", "author": "Friedrich Merz", "handle": "_FriedrichMerz"},
-    {"region": "REINO UNIDO", "role": "Primer Ministro", "author": "Andy Burnham", "handle": "AndyBurnhamGM"},
-    {"region": "UCRANIA", "role": "Presidente", "author": "Volodymyr Zelenskyy", "handle": "ZelenskyyUa"},
-    {"region": "RUSIA", "role": "Presidencia", "author": "Kremlin", "handle": "KremlinRussia_E"},
-    {"region": "RUSIA", "role": "Cancillería en Español", "author": "Cancillería Rusia", "handle": "mae_rusia"},
-
-    # Asia y Potencias
-    {"region": "CHINA", "role": "Cancillería / Portavocía", "author": "MFA China", "handle": "MFA_China"},
-    {"region": "JAPÓN", "role": "Primera Ministra", "author": "Sanae Takaichi", "handle": "takaichi_sanae"},
-    {"region": "COREA DEL SUR", "role": "Presidente", "author": "Lee Jae-myung", "handle": "Jaemyung_Lee"},
-    {"region": "INDIA", "role": "Primer Ministro", "author": "Narendra Modi", "handle": "narendramodi"},
-
-    # Organismos Multilaterales
-    {"region": "ONU", "role": "Secretario General", "author": "António Guterres", "handle": "antonioguterres"},
-    {"region": "OEA", "role": "Secretario General", "author": "Albert Ramdin", "handle": "AlbertRamdin"},
-
-    # Embajadas Extranjeras en México
-    {"region": "EMBAJADA EE.UU. EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada EE.UU. en México", "handle": "USEmbassyMEX"},
-    {"region": "EMBAJADA CANADÁ EN MÉXICO", "role": "Misión Diplomática", "author": "Canadá en México", "handle": "EmbCanMexico"},
-    {"region": "EMBAJADA ESPAÑA EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada España en México", "handle": "EmbEspMex"},
-    {"region": "EMBAJADA FRANCIA EN MÉXICO", "role": "Misión Diplomática", "author": "Francia en México", "handle": "FranciaenMexico"},
-    {"region": "EMBAJADA ALEMANIA EN MÉXICO", "role": "Misión Diplomática", "author": "Alemania en México", "handle": "AlemaniaenMex"},
-    {"region": "EMBAJADA REINO UNIDO EN MÉXICO", "role": "Misión Diplomática", "author": "UK in Mexico", "handle": "UKinMexico"},
-    {"region": "DELEGACIÓN UE EN MÉXICO", "role": "Misión Diplomática", "author": "Unión Europea en México", "handle": "UEenMexico"},
-    {"region": "EMBAJADA CHINA EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada de China en México", "handle": "EmbChinaMex"},
-    {"region": "EMBAJADA RUSIA EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada de Rusia en México", "handle": "EmbRusiaMexico"}
+HANDLES = [
+    "GreciMM18",
+    "BasedMikeLee", "TrumpWarRoom", "EricLDaugh", "MAGAVoice", "GuntherEagleman",
+    "TheSCIF", "RapidResponse47", "bennyjohnson", "nicksortor", "JackPosobiec",
+    "Real_RobN", "LauraLoomer", "NathanielSami", "LindseyGrahamSC", "elonmusk",
+    "johnnymaga", "mcucolo57", "Interior", "libsoftiktok", "BPUnion",
+    "howardlutnick", "SenRandPaul", "realDonaldTrump", "USAmbIndia", "altcap",
+    "TheJusticeDept", "MrWhiplash_", "BuzzPatterson", "OneBadDude_", "WallStreetApes",
+    "marklevinshow", "VigilantFox", "marcthiessen", "TaraBull", "WhiteHouse",
+    "ACTBrigitte", "AbrahamHamadeh", "SteveGuest", "JayTC53", "EYakoby",
+    "JDunlap1974", "its_Lexieroy", "irishpatriot91", "glennbeck", "interiorpress47",
+    "FoxNews", "GreereMedeea", "FreedomCaucusF", "IngrahamAngle", "IHF_Heritage"
 ]
 
-# ================= FILTRO DIPLOMÁTICO MULTILINGÜE =================
 KEYWORDS_REGEX = re.compile(
     r"\b("
     r"m[eé]xic\w*|mexican\w*|"
     r"claudia\s*sheinbaum|sheinbaum|"
     r"roberto\s*velasco|velasco\s*[aá]lvarez|@r_velascoa|"
-    r"canciller\s*mexican\w*|canciller[ií]a\s*mexican\w*|"
-    r"mexican\s*foreign\s*minister|foreign\s*secretary\s*of\s*mexico|"
-    r"secretar[ií]a\s*de\s*relaciones\s*exteriores|@SRE_mx|"
-    r"c[aá]rtel\w*"
+    r"usmca|t-?mec|nafta\s*2\.0"
     r")\b",
     re.IGNORECASE
 )
@@ -105,16 +54,14 @@ def clean_html(raw_html):
     clean = re.sub(r"<[^>]+>", " ", raw_html)
     return " ".join(clean.split())
 
-def send_telegram(region, role, author, text, link):
+def send_telegram(handle, text, link):
     safe_text = html.escape(text)
-    message = f"""🌐 <b>[GreciaWorldwide - {region}]</b>
-🏛 <b>Cargo:</b> {role}
-👤 <b>Emisor:</b> {author}
-
-{safe_text}
-
-🔗 <a href="{link}">Ver declaración original</a>"""
-
+    message = (
+        f"🦅 <b>[GreciaMiniAlgoritmoMAGA]</b>\n"
+        f"👤 <b>Cuenta:</b> @{handle}\n\n"
+        f"{safe_text}\n\n"
+        f"🔗 <a href='{link}'>Ver publicación</a>"
+    )
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
@@ -125,32 +72,24 @@ def send_telegram(region, role, author, text, link):
     try:
         requests.post(url, json=payload, timeout=10)
     except Exception as e:
-        print(f"Error al enviar a Telegram: {e}")
+        print(f"Error al enviar mensaje: {e}")
 
 async def main():
     state = load_state()
     is_initial_run = (len(state) == 0)
 
-    print(f"=== INICIANDO MONITOREO DIPLOMÁTICO: {len(SOURCES)} FUENTES ===")
-    
     client = Client('en-US')
 
-    if os.path.exists(COOKIES_FILE):
-        print("Cargando sesión existente desde cookies...")
-        client.load_cookies(COOKIES_FILE)
-    else:
-        print("Iniciando sesión en X...")
-        await client.login(auth_info_1=X_USER, auth_info_2=X_MAIL, password=X_PASS)
-        client.save_cookies(COOKIES_FILE)
-        print("Sesión iniciada y cookies guardadas.")
+    # Inyección directa de cookies de sesión sin pasar por login
+    client.set_cookies({
+        'auth_token': X_AUTH_TOKEN,
+        'ct0': X_CT0
+    })
 
-    for source in SOURCES:
-        region = source["region"]
-        role = source["role"]
-        author = source["author"]
-        handle = source["handle"]
+    print(f"=== Monitoreando {len(HANDLES)} cuentas con sesión autenticada ===")
+
+    for handle in HANDLES:
         last_id = state.get(handle)
-
         try:
             user = await client.get_user_by_screen_name(handle)
             tweets = await user.get_tweets('Tweets', count=5)
@@ -176,16 +115,16 @@ async def main():
         for t in reversed(new_tweets):
             full_text = clean_html(t.text)
             if KEYWORDS_REGEX.search(full_text):
-                print(f"🚨 Coincidencia encontrada en @{handle}: {full_text[:60]}")
+                print(f"🚨 COINCIDENCIA en @{handle}: {full_text[:60]}")
                 t_link = f"https://x.com/{handle}/status/{t.id}"
                 preview = full_text[:400] + ("..." if len(full_text) > 400 else "")
-                send_telegram(region, role, author, preview, t_link)
+                send_telegram(handle, preview, t_link)
 
         if new_tweets:
             state[handle] = str(new_tweets[0].id)
 
     save_state(state)
-    print("=== FIN DEL MONITOREO ===")
+    print("=== Monitoreo finalizado exitosamente ===")
 
 if __name__ == "__main__":
     asyncio.run(main())
