@@ -121,13 +121,24 @@ def send_telegram(region, role, author, text, link):
         "disable_web_page_preview": False
     }
     try:
-        requests.post(url, json=payload, timeout=10)
+        res = requests.post(url, json=payload, timeout=10)
+        if res.status_code == 200:
+            print(f"  ✉️ Alerta enviada con éxito a Telegram sobre {author}")
+        else:
+            print(f"  ❌ Telegram API error {res.status_code}: {res.text}")
     except Exception as e:
-        print(f"Error al enviar a Telegram: {e}")
+        print(f"  ❌ Error al enviar a Telegram: {e}")
 
 def main():
     state = load_state()
     is_initial_run = (len(state) == 0)
+
+    print(f"=== INICIANDO MONITOREO: {len(SOURCES)} FUENTES DIPLOMÁTICAS ===")
+    if is_initial_run:
+        print("ℹ️ Corrida inicial: se memorizarán los últimos posts de cada cuenta.")
+
+    fuentes_exitosas = 0
+    fuentes_fallidas = 0
 
     for source in SOURCES:
         region = source["region"]
@@ -138,11 +149,18 @@ def main():
 
         try:
             feed = feedparser.parse(url, request_headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-        except Exception:
+        except Exception as e:
+            print(f"❌ Error de red en {name}: {e}")
+            fuentes_fallidas += 1
             continue
 
         if not feed.entries:
+            print(f"⚠️ Sin datos (instancia caída o bloqueada): {name}")
+            fuentes_fallidas += 1
             continue
+
+        fuentes_exitosas += 1
+        print(f"✅ Conectado: {name} ({len(feed.entries)} publicaciones disponibles)")
 
         if is_initial_run or last_id is None:
             state[name] = feed.entries[0].get("id", feed.entries[0].link)
@@ -161,6 +179,7 @@ def main():
             full_text = clean_html(f"{raw_title} {raw_summary}")
 
             if KEYWORDS_REGEX.search(full_text):
+                print(f"🚨 COINCIDENCIA DETECTADA en {name}: {full_text[:80]}...")
                 preview = full_text[:400] + ("..." if len(full_text) > 400 else "")
                 send_telegram(region, role, name, preview, entry.link)
 
@@ -168,6 +187,7 @@ def main():
             state[name] = new_entries[0].get("id", new_entries[0].link)
 
     save_state(state)
+    print(f"=== FIN DEL MONITOREO: {fuentes_exitosas} conectadas | {fuentes_fallidas} caídas ===")
 
 if __name__ == "__main__":
     main()
