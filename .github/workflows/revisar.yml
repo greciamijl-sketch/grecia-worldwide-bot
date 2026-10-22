@@ -2,7 +2,7 @@ name: GreciaWorldwideBot
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -17,10 +17,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Instalar librerías
+      - name: Instalar dependencias y navegador
         run: |
           python -m pip install --upgrade pip
-          pip install requests
+          pip install requests playwright
+          playwright install --with-deps chromium
 
       - name: Ejecutar bot diplomático
         env:
