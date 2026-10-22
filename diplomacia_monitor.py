@@ -2,6 +2,8 @@ import json
 import os
 import re
 import html
+import sys
+import time
 import requests
 from playwright.sync_api import sync_playwright
 
@@ -121,35 +123,36 @@ def send_telegram(region, role, author, text, link):
     try:
         requests.post(url, json=payload, timeout=10)
     except Exception as e:
-        print(f"Error al enviar a Telegram: {e}")
+        print(f"Error al enviar a Telegram: {e}", flush=True)
 
 def scrape_tweets(page, handle):
     url = f"https://x.com/{handle}"
-    page.goto(url, wait_until="domcontentloaded", timeout=20000)
-    
-    # Esperar a que se renderice el timeline
+    page.goto(url, wait_until="networkidle", timeout=15000)
+
+    # Esperar explícitamente a que aparezca la celda del tuit
     try:
-        page.wait_for_selector("article[data-testid='tweet']", timeout=10000)
+        page.wait_for_selector("[data-testid='cellInnerDiv']", timeout=8000)
     except Exception:
-        return []
+        pass
+
+    # Pequeño scroll suave hacia abajo para asegurar que el timeline monte los tuits
+    page.mouse.wheel(0, 400)
+    time.sleep(1)
 
     articles = page.locator("article[data-testid='tweet']").all()[:5]
     tweets = []
 
     for art in articles:
         try:
-            # Buscar el link directo al tuit
             link_elem = art.locator("a[href*='/status/']").first
             href = link_elem.get_attribute("href") if link_elem.count() > 0 else None
-            if not href:
+            if not href or "/status/" not in href:
                 continue
 
-            # Extraer ID numérico
             match_id = re.search(r"/status/(\d+)", href)
             tweet_id = match_id.group(1) if match_id else href
 
-            # Extraer texto del tuit
-            text_elem = art.locator("div[data-testid='tweetText']").first
+            text_elem = art.locator("[data-testid='tweetText']").first
             text = text_elem.inner_text() if text_elem.count() > 0 else ""
 
             tweets.append({
@@ -166,22 +169,39 @@ def main():
     state = load_state()
     is_initial_run = (len(state) == 0)
 
-    print(f"=== INICIANDO MONITOREO DIPLOMÁTICO: {len(SOURCES)} FUENTES ===")
+    print(f"=== INICIANDO MONITOREO DIPLOMÁTICO: {len(SOURCES)} FUENTES ===", flush=True)
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(
+            headless=True,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-setuid-sandbox"
+            ]
+        )
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            locale="es-ES"
+            locale="es-ES",
+            viewport={"width": 1280, "height": 800}
         )
 
-        # Inyectar cookies de sesión directamente en el contexto del navegador
+        # Inyectar cookies de sesión
         context.add_cookies([
             {"name": "auth_token", "value": X_AUTH_TOKEN, "domain": ".x.com", "path": "/"},
             {"name": "ct0", "value": X_CT0, "domain": ".x.com", "path": "/"}
         ])
 
         page = context.new_page()
+
+        # Solo bloquear imágenes y videos pesados (dejar estilos y scripts intactos)
+        def intercept_route(route):
+            if route.request.resource_type in ["image", "media"]:
+                route.abort()
+            else:
+                route.continue_()
+
+        page.route("**/*", intercept_route)
 
         for source in SOURCES:
             region = source["region"]
@@ -193,10 +213,10 @@ def main():
             try:
                 tweets = scrape_tweets(page, handle)
             except Exception as e:
-                print(f"❌ Error al consultar @{handle}: {e}")
+                print(f"❌ Error al consultar @{handle}: {e}", flush=True)
                 continue
 
-            print(f"✅ @{handle}: {len(tweets)} tuits obtenidos.")
+            print(f"✅ @{handle}: {len(tweets)} tuits obtenidos.", flush=True)
 
             if not tweets:
                 continue
@@ -214,7 +234,7 @@ def main():
             for t in reversed(new_tweets):
                 full_text = clean_html(t["text"])
                 if KEYWORDS_REGEX.search(full_text):
-                    print(f"🚨 Coincidencia encontrada en @{handle}: {full_text[:60]}")
+                    print(f"🚨 Coincidencia encontrada en @{handle}: {full_text[:60]}", flush=True)
                     preview = full_text[:400] + ("..." if len(full_text) > 400 else "")
                     send_telegram(region, role, author, preview, t["link"])
 
@@ -224,7 +244,7 @@ def main():
         browser.close()
 
     save_state(state)
-    print("=== FIN DEL MONITOREO DIPLOMÁTICO ===")
+    print("=== FIN DEL MONITOREO DIPLOMÁTICO ===", flush=True)
 
 if __name__ == "__main__":
     main()
