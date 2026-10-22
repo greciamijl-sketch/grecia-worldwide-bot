@@ -133,7 +133,7 @@ async def main():
     
     client = Client('en-US')
 
-    # Autenticación directa mediante cookies
+    # Autenticación directa mediante cookies sin pasar por login
     client.set_cookies({
         'auth_token': X_AUTH_TOKEN,
         'ct0': X_CT0
