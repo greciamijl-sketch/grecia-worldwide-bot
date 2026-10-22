@@ -14,6 +14,7 @@ X_CT0 = os.environ.get("X_CT0", "").strip()
 
 STATE_FILE = "last_seen_diplomacy.json"
 
+# ================= DIRECTORIO DIPLOMÁTICO GLOBAL =================
 SOURCES = [
     # América del Norte
     {"region": "EE.UU.", "role": "Presidente", "author": "POTUS", "handle": "POTUS"},
@@ -72,6 +73,7 @@ SOURCES = [
     {"region": "EMBAJADA RUSIA EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada de Rusia en México", "handle": "EmbRusiaMexico"}
 ]
 
+# ================= FILTRO DIPLOMÁTICO MULTILINGÜE =================
 KEYWORDS_REGEX = re.compile(
     r"\b("
     r"m[eé]xic\w*|mexican\w*|"
@@ -125,27 +127,21 @@ def send_telegram(region, role, author, text, link):
 
 def scrape_tweets(page, handle):
     url = f"https://x.com/{handle}"
-    page.goto(url, wait_until="domcontentloaded", timeout=15000)
+    page.goto(url, wait_until="domcontentloaded", timeout=12000)
 
-    # Esperar hasta 6 segundos a que cargue cualquier tuit o mensaje
-    try:
-        page.wait_for_selector("article, [data-testid='tweet']", timeout=6000)
-    except Exception:
-        pass
+    # Forzar desplazamiento hacia abajo para activar la carga dinámica del timeline
+    for _ in range(2):
+        page.mouse.wheel(0, 800)
+        time.sleep(0.8)
 
-    # Diagnóstico del contenido de la página si no detecta tuits
-    page_text = page.inner_text("body")
-    if "Inicia sesión" in page_text or "Log in to X" in page_text:
-        print(f"⚠️ Sesión no reconocida en @{handle} (pide login). Revisa X_AUTH_TOKEN.", flush=True)
-        return []
-    if "Esta cuenta no existe" in page_text or "This account doesn’t exist" in page_text:
-        print(f"⚠️ La cuenta @{handle} no existe.", flush=True)
-        return []
+    # Localizar los tuits por su etiqueta semántica de artículo
+    tweet_elements = page.locator("article[data-testid='tweet']").all()[:5]
+    if not tweet_elements:
+        # Fallback a artículos genéricos en el timeline
+        tweet_elements = page.locator("div[aria-label*='Timeline'] article, section article").all()[:5]
 
-    articles = page.locator("article").all()[:5]
     tweets = []
-
-    for art in articles:
+    for art in tweet_elements:
         try:
             link_elem = art.locator("a[href*='/status/']").first
             href = link_elem.get_attribute("href") if link_elem.count() > 0 else None
@@ -174,21 +170,22 @@ def main():
 
     print(f"=== INICIANDO MONITOREO DIPLOMÁTICO: {len(SOURCES)} FUENTES ===", flush=True)
 
-    if not X_AUTH_TOKEN or not X_CT0:
-        print("❌ ERROR: X_AUTH_TOKEN o X_CT0 están vacíos en Secrets.", flush=True)
-        return
-
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-setuid-sandbox"]
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-blink-features=AutomationControlled"
+            ]
         )
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            locale="es-ES"
+            locale="es-ES",
+            viewport={"width": 1280, "height": 900}
         )
 
-        # Inyectar cookies tanto para .x.com como para x.com
+        # Inyección de cookies de sesión
         context.add_cookies([
             {"name": "auth_token", "value": X_AUTH_TOKEN, "domain": ".x.com", "path": "/"},
             {"name": "ct0", "value": X_CT0, "domain": ".x.com", "path": "/"},
