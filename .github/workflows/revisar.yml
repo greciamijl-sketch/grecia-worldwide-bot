@@ -1,4 +1,4 @@
-name: GreciaMiniAlgoritmoMAGA
+name: GreciaWorldwideBot
 
 on:
   schedule:
@@ -22,18 +22,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests twikit
 
-      - name: Ejecutar monitor
+      - name: Ejecutar bot diplomático
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           X_AUTH_TOKEN: ${{ secrets.X_AUTH_TOKEN }}
           X_CT0: ${{ secrets.X_CT0 }}
-        run: python us_monitor.py
+        run: python diplomacia_monitor.py
 
       - name: Guardar estado
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add last_seen_us.json || true
-          git commit -m "Actualizar historial de publicaciones" || exit 0
+          git add last_seen_diplomacy.json || true
+          git commit -m "Actualizar historial diplomático" || exit 0
           git push
