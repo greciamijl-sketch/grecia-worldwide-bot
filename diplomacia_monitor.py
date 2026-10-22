@@ -14,6 +14,7 @@ STATE_FILE = "last_seen_diplomacy.json"
 
 BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
 
+# ================= DIRECTORIO DIPLOMÁTICO GLOBAL =================
 SOURCES = [
     # América del Norte
     {"region": "EE.UU.", "role": "Presidente", "author": "POTUS", "handle": "POTUS"},
@@ -72,6 +73,7 @@ SOURCES = [
     {"region": "EMBAJADA RUSIA EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada de Rusia en México", "handle": "EmbRusiaMexico"}
 ]
 
+# ================= FILTRO DIPLOMÁTICO MULTILINGÜE =================
 KEYWORDS_REGEX = re.compile(
     r"\b("
     r"m[eé]xic\w*|mexican\w*|"
@@ -104,14 +106,13 @@ def clean_html(raw_html):
 
 def send_telegram(region, role, author, text, link):
     safe_text = html.escape(text)
-    message = f"""🌐 <b>[GreciaWorldwide - {region}]</b>
-🏛 <b>Cargo:</b> {role}
-👤 <b>Emisor:</b> {author}
-
-{safe_text}
-
-🔗 <a href="{link}">Ver declaración original</a>"""
-
+    message = (
+        f"🌐 <b>[GreciaWorldwide - {region}]</b>\n"
+        f"🏛 <b>Cargo:</b> {role}\n"
+        f"👤 <b>Emisor:</b> {author}\n\n"
+        f"{safe_text}\n\n"
+        f"🔗 <a href='{link}'>Ver declaración original</a>"
+    )
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
@@ -124,32 +125,86 @@ def send_telegram(region, role, author, text, link):
     except Exception as e:
         print(f"Error al enviar a Telegram: {e}")
 
-def get_user_tweets(session, handle):
-    # 1. Obtener el ID del usuario
-    user_url = f"https://api.x.com/1.1/users/show.json?screen_name={handle}"
-    res = session.get(user_url, timeout=10)
+def get_user_rest_id(session, handle):
+    endpoint = "https://x.com/i/api/graphql/sLVLhk0bGj3MVFEKTdax1w/UserByScreenName"
+    variables = {
+        "screen_name": handle,
+        "withSafetyModeUserFields": True
+    }
+    features = {
+        "hidden_profile_likes_enabled": True,
+        "hidden_profile_subscriptions_enabled": True,
+        "responsive_web_graphql_exclude_directive_enabled": True,
+        "verified_phone_label_enabled": False,
+        "subscriptions_verification_info_is_identity_verified_enabled": True,
+        "subscriptions_verification_info_verified_since_enabled": True,
+        "highlights_tweets_tab_ui_enabled": True,
+        "responsive_web_twitter_article_tweet_consumption_enabled": True,
+        "creator_subscriptions_tweet_preview_api_enabled": True,
+        "responsive_web_graphql_skip_user_profile_image_extensions_enabled": False,
+        "responsive_web_graphql_timeline_navigation_enabled": True
+    }
+    params = {
+        "variables": json.dumps(variables),
+        "features": json.dumps(features)
+    }
+    res = session.get(endpoint, params=params, timeout=10)
     if res.status_code != 200:
-        return None, f"Error HTTP {res.status_code} al buscar usuario"
+        return None, f"Error {res.status_code} al consultar perfil"
+    data = res.json()
+    user_data = data.get("data", {}).get("user", {}).get("result", {})
+    rest_id = user_data.get("rest_id")
+    if not rest_id:
+        return None, "Usuario no encontrado o suspendido"
+    return rest_id, None
+
+def get_user_tweets(session, rest_id):
+    endpoint = "https://x.com/i/api/graphql/VWFGPVAGkZMGRKGe3GFFnA/UserTweets"
+    variables = {
+        "userId": rest_id,
+        "count": 5,
+        "includePromotedContent": False,
+        "withQuickPromoteEligibilityTweetFields": True,
+        "withVoice": True,
+        "withV2Timeline": True
+    }
+    features = {
+        "responsive_web_graphql_exclude_directive_enabled": True,
+        "verified_phone_label_enabled": False,
+        "creator_subscriptions_tweet_preview_api_enabled": True,
+        "responsive_web_graphql_timeline_navigation_enabled": True,
+        "responsive_web_graphql_skip_user_profile_image_extensions_enabled": False,
+        "tweet_awards_web_tipping_enabled": False,
+        "responsive_web_twitter_article_tweet_consumption_enabled": True
+    }
+    params = {
+        "variables": json.dumps(variables),
+        "features": json.dumps(features)
+    }
+    res = session.get(endpoint, params=params, timeout=10)
+    if res.status_code != 200:
+        return None, f"Error {res.status_code} al consultar timeline"
     
-    user_data = res.json()
-    user_id = user_data.get("id_str")
-    if not user_id:
-        return None, "No se encontró el ID numérico del usuario"
+    data = res.json()
+    tweets = []
+    try:
+        instructions = data["data"]["user"]["result"]["timeline_v2"]["timeline"]["instructions"]
+        for inst in instructions:
+            if inst.get("type") == "TimelineAddEntries":
+                for entry in inst.get("entries", []):
+                    content = entry.get("content", {})
+                    if content.get("entryType") == "TimelineTimelineItem":
+                        result = content.get("itemContent", {}).get("tweet_results", {}).get("result", {})
+                        legacy = result.get("legacy") or result.get("tweet", {}).get("legacy")
+                        if legacy:
+                            tweets.append({
+                                "id": str(legacy.get("id_str")),
+                                "text": legacy.get("full_text", "")
+                            })
+    except Exception as e:
+        return None, f"Error interpretando JSON: {e}"
 
-    # 2. Consultar sus tuits recientes mediante la API v1.1 autenticada
-    timeline_url = f"https://api.x.com/1.1/statuses/user_timeline.json?user_id={user_id}&count=5&tweet_mode=extended&exclude_replies=false&include_rts=true"
-    res_timeline = session.get(timeline_url, timeout=10)
-    if res_timeline.status_code != 200:
-        return None, f"Error HTTP {res_timeline.status_code} en timeline"
-
-    tweets = res_timeline.json()
-    parsed_tweets = []
-    for t in tweets:
-        parsed_tweets.append({
-            "id": str(t.get("id_str")),
-            "text": t.get("full_text", "")
-        })
-    return parsed_tweets, None
+    return tweets, None
 
 def main():
     state = load_state()
@@ -157,12 +212,14 @@ def main():
 
     print(f"=== INICIANDO MONITOREO DIPLOMÁTICO: {len(SOURCES)} FUENTES ===")
     
-    # Crear sesión HTTP directa usando las cookies activas
     session = requests.Session()
     session.headers.update({
-        "Authorization": f"Bearer {BEARER_TOKEN}",
+        "authorization": f"Bearer {BEARER_TOKEN}",
         "x-csrf-token": X_CT0,
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        "x-twitter-active-user": "yes",
+        "x-twitter-auth-type": "OAuth2Session",
+        "x-twitter-client-language": "es",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     })
     session.cookies.set("auth_token", X_AUTH_TOKEN, domain=".x.com")
     session.cookies.set("ct0", X_CT0, domain=".x.com")
@@ -174,9 +231,15 @@ def main():
         handle = source["handle"]
         last_id = state.get(handle)
 
-        tweets, err = get_user_tweets(session, handle)
+        rest_id, err = get_user_rest_id(session, handle)
         if err:
             print(f"❌ Error al consultar @{handle}: {err}")
+            time.sleep(1)
+            continue
+
+        tweets, err = get_user_tweets(session, rest_id)
+        if err:
+            print(f"❌ Error en timeline de @{handle}: {err}")
             time.sleep(1)
             continue
 
