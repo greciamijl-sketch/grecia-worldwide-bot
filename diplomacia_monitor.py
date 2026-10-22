@@ -1,10 +1,9 @@
-import asyncio
 import json
 import os
 import re
 import html
+import time
 import requests
-from twikit import Client
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -13,7 +12,8 @@ X_CT0 = os.environ.get("X_CT0")
 
 STATE_FILE = "last_seen_diplomacy.json"
 
-# ================= DIRECTORIO DIPLOMÁTICO GLOBAL =================
+BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
+
 SOURCES = [
     # América del Norte
     {"region": "EE.UU.", "role": "Presidente", "author": "POTUS", "handle": "POTUS"},
@@ -72,7 +72,6 @@ SOURCES = [
     {"region": "EMBAJADA RUSIA EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada de Rusia en México", "handle": "EmbRusiaMexico"}
 ]
 
-# ================= FILTRO DIPLOMÁTICO MULTILINGÜE =================
 KEYWORDS_REGEX = re.compile(
     r"\b("
     r"m[eé]xic\w*|mexican\w*|"
@@ -125,19 +124,48 @@ def send_telegram(region, role, author, text, link):
     except Exception as e:
         print(f"Error al enviar a Telegram: {e}")
 
-async def main():
+def get_user_tweets(session, handle):
+    # 1. Obtener el ID del usuario
+    user_url = f"https://api.x.com/1.1/users/show.json?screen_name={handle}"
+    res = session.get(user_url, timeout=10)
+    if res.status_code != 200:
+        return None, f"Error HTTP {res.status_code} al buscar usuario"
+    
+    user_data = res.json()
+    user_id = user_data.get("id_str")
+    if not user_id:
+        return None, "No se encontró el ID numérico del usuario"
+
+    # 2. Consultar sus tuits recientes mediante la API v1.1 autenticada
+    timeline_url = f"https://api.x.com/1.1/statuses/user_timeline.json?user_id={user_id}&count=5&tweet_mode=extended&exclude_replies=false&include_rts=true"
+    res_timeline = session.get(timeline_url, timeout=10)
+    if res_timeline.status_code != 200:
+        return None, f"Error HTTP {res_timeline.status_code} en timeline"
+
+    tweets = res_timeline.json()
+    parsed_tweets = []
+    for t in tweets:
+        parsed_tweets.append({
+            "id": str(t.get("id_str")),
+            "text": t.get("full_text", "")
+        })
+    return parsed_tweets, None
+
+def main():
     state = load_state()
     is_initial_run = (len(state) == 0)
 
     print(f"=== INICIANDO MONITOREO DIPLOMÁTICO: {len(SOURCES)} FUENTES ===")
     
-    client = Client('en-US')
-
-    # Autenticación directa mediante cookies sin pasar por login
-    client.set_cookies({
-        'auth_token': X_AUTH_TOKEN,
-        'ct0': X_CT0
+    # Crear sesión HTTP directa usando las cookies activas
+    session = requests.Session()
+    session.headers.update({
+        "Authorization": f"Bearer {BEARER_TOKEN}",
+        "x-csrf-token": X_CT0,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     })
+    session.cookies.set("auth_token", X_AUTH_TOKEN, domain=".x.com")
+    session.cookies.set("ct0", X_CT0, domain=".x.com")
 
     for source in SOURCES:
         region = source["region"]
@@ -146,41 +174,44 @@ async def main():
         handle = source["handle"]
         last_id = state.get(handle)
 
-        try:
-            user = await client.get_user_by_screen_name(handle)
-            tweets = await user.get_tweets('Tweets', count=5)
-            print(f"✅ @{handle}: {len(tweets)} tuits obtenidos.")
-        except Exception as e:
-            print(f"❌ Error al consultar @{handle}: {e}")
+        tweets, err = get_user_tweets(session, handle)
+        if err:
+            print(f"❌ Error al consultar @{handle}: {err}")
+            time.sleep(1)
             continue
 
+        print(f"✅ @{handle}: {len(tweets)} tuits obtenidos.")
+
         if not tweets:
+            time.sleep(1)
             continue
 
         if is_initial_run or last_id is None:
-            state[handle] = str(tweets[0].id)
+            state[handle] = tweets[0]["id"]
+            time.sleep(1)
             continue
 
         new_tweets = []
         for t in tweets:
-            t_id = str(t.id)
-            if t_id == last_id:
+            if t["id"] == last_id:
                 break
             new_tweets.append(t)
 
         for t in reversed(new_tweets):
-            full_text = clean_html(t.text)
+            full_text = clean_html(t["text"])
             if KEYWORDS_REGEX.search(full_text):
                 print(f"🚨 Coincidencia encontrada en @{handle}: {full_text[:60]}")
-                t_link = f"https://x.com/{handle}/status/{t.id}"
+                t_link = f"https://x.com/{handle}/status/{t['id']}"
                 preview = full_text[:400] + ("..." if len(full_text) > 400 else "")
                 send_telegram(region, role, author, preview, t_link)
 
         if new_tweets:
-            state[handle] = str(new_tweets[0].id)
+            state[handle] = new_tweets[0]["id"]
+
+        time.sleep(1)
 
     save_state(state)
     print("=== FIN DEL MONITOREO DIPLOMÁTICO ===")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
