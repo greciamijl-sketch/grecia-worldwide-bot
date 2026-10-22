@@ -2,8 +2,8 @@ import json
 import os
 import re
 import html
-import time
 import requests
+from playwright.sync_api import sync_playwright
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -11,8 +11,6 @@ X_AUTH_TOKEN = os.environ.get("X_AUTH_TOKEN")
 X_CT0 = os.environ.get("X_CT0")
 
 STATE_FILE = "last_seen_diplomacy.json"
-
-BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
 
 # ================= DIRECTORIO DIPLOMÁTICO GLOBAL =================
 SOURCES = [
@@ -125,115 +123,105 @@ def send_telegram(region, role, author, text, link):
     except Exception as e:
         print(f"Error al enviar a Telegram: {e}")
 
-def get_tweets_by_search(session, handle):
-    # Consulta mediante la búsqueda avanzada nativa de X
-    endpoint = "https://x.com/i/api/graphql/MJvjTbp00p8U43wGiiM0gw/SearchTimeline"
+def scrape_tweets(page, handle):
+    url = f"https://x.com/{handle}"
+    page.goto(url, wait_until="domcontentloaded", timeout=20000)
     
-    variables = {
-        "rawQuery": f"from:{handle}",
-        "count": 5,
-        "querySource": "typed_query",
-        "product": "Latest"
-    }
-    features = {
-        "responsive_web_graphql_exclude_directive_enabled": True,
-        "verified_phone_label_enabled": False,
-        "creator_subscriptions_tweet_preview_api_enabled": True,
-        "responsive_web_graphql_timeline_navigation_enabled": True,
-        "responsive_web_graphql_skip_user_profile_image_extensions_enabled": False,
-        "tweet_awards_web_tipping_enabled": False,
-        "responsive_web_twitter_article_tweet_consumption_enabled": True
-    }
-    params = {
-        "variables": json.dumps(variables),
-        "features": json.dumps(features)
-    }
-
-    res = session.get(endpoint, params=params, timeout=10)
-    if res.status_code != 200:
-        return None, f"Error {res.status_code}"
-
-    tweets = []
+    # Esperar a que se renderice el timeline
     try:
-        data = res.json()
-        instructions = data["data"]["search_by_raw_query"]["search_timeline"]["timeline"]["instructions"]
-        for inst in instructions:
-            if inst.get("type") == "TimelineAddEntries":
-                for entry in inst.get("entries", []):
-                    content = entry.get("content", {})
-                    if content.get("entryType") == "TimelineTimelineItem":
-                        result = content.get("itemContent", {}).get("tweet_results", {}).get("result", {})
-                        legacy = result.get("legacy") or result.get("tweet", {}).get("legacy")
-                        if legacy:
-                            tweets.append({
-                                "id": str(legacy.get("id_str")),
-                                "text": legacy.get("full_text", "")
-                            })
-    except Exception as e:
-        return None, f"Error parsing: {e}"
+        page.wait_for_selector("article[data-testid='tweet']", timeout=10000)
+    except Exception:
+        return []
 
-    return tweets, None
+    articles = page.locator("article[data-testid='tweet']").all()[:5]
+    tweets = []
+
+    for art in articles:
+        try:
+            # Buscar el link directo al tuit
+            link_elem = art.locator("a[href*='/status/']").first
+            href = link_elem.get_attribute("href") if link_elem.count() > 0 else None
+            if not href:
+                continue
+
+            # Extraer ID numérico
+            match_id = re.search(r"/status/(\d+)", href)
+            tweet_id = match_id.group(1) if match_id else href
+
+            # Extraer texto del tuit
+            text_elem = art.locator("div[data-testid='tweetText']").first
+            text = text_elem.inner_text() if text_elem.count() > 0 else ""
+
+            tweets.append({
+                "id": str(tweet_id),
+                "text": text,
+                "link": f"https://x.com{href}" if href.startswith("/") else href
+            })
+        except Exception:
+            continue
+
+    return tweets
 
 def main():
     state = load_state()
     is_initial_run = (len(state) == 0)
 
     print(f"=== INICIANDO MONITOREO DIPLOMÁTICO: {len(SOURCES)} FUENTES ===")
-    
-    session = requests.Session()
-    session.headers.update({
-        "authorization": f"Bearer {BEARER_TOKEN}",
-        "x-csrf-token": X_CT0,
-        "x-twitter-active-user": "yes",
-        "x-twitter-auth-type": "OAuth2Session",
-        "x-twitter-client-language": "es",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-    })
-    session.cookies.set("auth_token", X_AUTH_TOKEN, domain=".x.com")
-    session.cookies.set("ct0", X_CT0, domain=".x.com")
 
-    for source in SOURCES:
-        region = source["region"]
-        role = source["role"]
-        author = source["author"]
-        handle = source["handle"]
-        last_id = state.get(handle)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            locale="es-ES"
+        )
 
-        tweets, err = get_tweets_by_search(session, handle)
-        if err:
-            print(f"❌ Error al consultar @{handle}: {err}")
-            time.sleep(1)
-            continue
+        # Inyectar cookies de sesión directamente en el contexto del navegador
+        context.add_cookies([
+            {"name": "auth_token", "value": X_AUTH_TOKEN, "domain": ".x.com", "path": "/"},
+            {"name": "ct0", "value": X_CT0, "domain": ".x.com", "path": "/"}
+        ])
 
-        print(f"✅ @{handle}: {len(tweets)} tuits obtenidos.")
+        page = context.new_page()
 
-        if not tweets:
-            time.sleep(1)
-            continue
+        for source in SOURCES:
+            region = source["region"]
+            role = source["role"]
+            author = source["author"]
+            handle = source["handle"]
+            last_id = state.get(handle)
 
-        if is_initial_run or last_id is None:
-            state[handle] = tweets[0]["id"]
-            time.sleep(1)
-            continue
+            try:
+                tweets = scrape_tweets(page, handle)
+            except Exception as e:
+                print(f"❌ Error al consultar @{handle}: {e}")
+                continue
 
-        new_tweets = []
-        for t in tweets:
-            if t["id"] == last_id:
-                break
-            new_tweets.append(t)
+            print(f"✅ @{handle}: {len(tweets)} tuits obtenidos.")
 
-        for t in reversed(new_tweets):
-            full_text = clean_html(t["text"])
-            if KEYWORDS_REGEX.search(full_text):
-                print(f"🚨 Coincidencia encontrada en @{handle}: {full_text[:60]}")
-                t_link = f"https://x.com/{handle}/status/{t['id']}"
-                preview = full_text[:400] + ("..." if len(full_text) > 400 else "")
-                send_telegram(region, role, author, preview, t_link)
+            if not tweets:
+                continue
 
-        if new_tweets:
-            state[handle] = new_tweets[0]["id"]
+            if is_initial_run or last_id is None:
+                state[handle] = tweets[0]["id"]
+                continue
 
-        time.sleep(1)
+            new_tweets = []
+            for t in tweets:
+                if t["id"] == last_id:
+                    break
+                new_tweets.append(t)
+
+            for t in reversed(new_tweets):
+                full_text = clean_html(t["text"])
+                if KEYWORDS_REGEX.search(full_text):
+                    print(f"🚨 Coincidencia encontrada en @{handle}: {full_text[:60]}")
+                    preview = full_text[:400] + ("..." if len(full_text) > 400 else "")
+                    send_telegram(region, role, author, preview, t["link"])
+
+            if new_tweets:
+                state[handle] = new_tweets[0]["id"]
+
+        browser.close()
 
     save_state(state)
     print("=== FIN DEL MONITOREO DIPLOMÁTICO ===")
