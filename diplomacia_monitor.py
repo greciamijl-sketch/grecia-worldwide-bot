@@ -125,48 +125,15 @@ def send_telegram(region, role, author, text, link):
     except Exception as e:
         print(f"Error al enviar a Telegram: {e}")
 
-def get_user_rest_id(session, handle):
-    endpoint = "https://x.com/i/api/graphql/sLVLhk0bGj3MVFEKTdax1w/UserByScreenName"
+def get_tweets_by_search(session, handle):
+    # Consulta mediante la búsqueda avanzada nativa de X
+    endpoint = "https://x.com/i/api/graphql/MJvjTbp00p8U43wGiiM0gw/SearchTimeline"
+    
     variables = {
-        "screen_name": handle,
-        "withSafetyModeUserFields": True
-    }
-    features = {
-        "hidden_profile_likes_enabled": True,
-        "hidden_profile_subscriptions_enabled": True,
-        "responsive_web_graphql_exclude_directive_enabled": True,
-        "verified_phone_label_enabled": False,
-        "subscriptions_verification_info_is_identity_verified_enabled": True,
-        "subscriptions_verification_info_verified_since_enabled": True,
-        "highlights_tweets_tab_ui_enabled": True,
-        "responsive_web_twitter_article_tweet_consumption_enabled": True,
-        "creator_subscriptions_tweet_preview_api_enabled": True,
-        "responsive_web_graphql_skip_user_profile_image_extensions_enabled": False,
-        "responsive_web_graphql_timeline_navigation_enabled": True
-    }
-    params = {
-        "variables": json.dumps(variables),
-        "features": json.dumps(features)
-    }
-    res = session.get(endpoint, params=params, timeout=10)
-    if res.status_code != 200:
-        return None, f"Error {res.status_code} al consultar perfil"
-    data = res.json()
-    user_data = data.get("data", {}).get("user", {}).get("result", {})
-    rest_id = user_data.get("rest_id")
-    if not rest_id:
-        return None, "Usuario no encontrado o suspendido"
-    return rest_id, None
-
-def get_user_tweets(session, rest_id):
-    endpoint = "https://x.com/i/api/graphql/VWFGPVAGkZMGRKGe3GFFnA/UserTweets"
-    variables = {
-        "userId": rest_id,
+        "rawQuery": f"from:{handle}",
         "count": 5,
-        "includePromotedContent": False,
-        "withQuickPromoteEligibilityTweetFields": True,
-        "withVoice": True,
-        "withV2Timeline": True
+        "querySource": "typed_query",
+        "product": "Latest"
     }
     features = {
         "responsive_web_graphql_exclude_directive_enabled": True,
@@ -181,14 +148,15 @@ def get_user_tweets(session, rest_id):
         "variables": json.dumps(variables),
         "features": json.dumps(features)
     }
+
     res = session.get(endpoint, params=params, timeout=10)
     if res.status_code != 200:
-        return None, f"Error {res.status_code} al consultar timeline"
-    
-    data = res.json()
+        return None, f"Error {res.status_code}"
+
     tweets = []
     try:
-        instructions = data["data"]["user"]["result"]["timeline_v2"]["timeline"]["instructions"]
+        data = res.json()
+        instructions = data["data"]["search_by_raw_query"]["search_timeline"]["timeline"]["instructions"]
         for inst in instructions:
             if inst.get("type") == "TimelineAddEntries":
                 for entry in inst.get("entries", []):
@@ -202,7 +170,7 @@ def get_user_tweets(session, rest_id):
                                 "text": legacy.get("full_text", "")
                             })
     except Exception as e:
-        return None, f"Error interpretando JSON: {e}"
+        return None, f"Error parsing: {e}"
 
     return tweets, None
 
@@ -231,15 +199,9 @@ def main():
         handle = source["handle"]
         last_id = state.get(handle)
 
-        rest_id, err = get_user_rest_id(session, handle)
+        tweets, err = get_tweets_by_search(session, handle)
         if err:
             print(f"❌ Error al consultar @{handle}: {err}")
-            time.sleep(1)
-            continue
-
-        tweets, err = get_user_tweets(session, rest_id)
-        if err:
-            print(f"❌ Error en timeline de @{handle}: {err}")
             time.sleep(1)
             continue
 
