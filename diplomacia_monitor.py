@@ -9,12 +9,11 @@ from playwright.sync_api import sync_playwright
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-X_AUTH_TOKEN = os.environ.get("X_AUTH_TOKEN")
-X_CT0 = os.environ.get("X_CT0")
+X_AUTH_TOKEN = os.environ.get("X_AUTH_TOKEN", "").strip()
+X_CT0 = os.environ.get("X_CT0", "").strip()
 
 STATE_FILE = "last_seen_diplomacy.json"
 
-# ================= DIRECTORIO DIPLOMÁTICO GLOBAL =================
 SOURCES = [
     # América del Norte
     {"region": "EE.UU.", "role": "Presidente", "author": "POTUS", "handle": "POTUS"},
@@ -73,7 +72,6 @@ SOURCES = [
     {"region": "EMBAJADA RUSIA EN MÉXICO", "role": "Misión Diplomática", "author": "Embajada de Rusia en México", "handle": "EmbRusiaMexico"}
 ]
 
-# ================= FILTRO DIPLOMÁTICO MULTILINGÜE =================
 KEYWORDS_REGEX = re.compile(
     r"\b("
     r"m[eé]xic\w*|mexican\w*|"
@@ -127,19 +125,24 @@ def send_telegram(region, role, author, text, link):
 
 def scrape_tweets(page, handle):
     url = f"https://x.com/{handle}"
-    page.goto(url, wait_until="networkidle", timeout=15000)
+    page.goto(url, wait_until="domcontentloaded", timeout=15000)
 
-    # Esperar explícitamente a que aparezca la celda del tuit
+    # Esperar hasta 6 segundos a que cargue cualquier tuit o mensaje
     try:
-        page.wait_for_selector("[data-testid='cellInnerDiv']", timeout=8000)
+        page.wait_for_selector("article, [data-testid='tweet']", timeout=6000)
     except Exception:
         pass
 
-    # Pequeño scroll suave hacia abajo para asegurar que el timeline monte los tuits
-    page.mouse.wheel(0, 400)
-    time.sleep(1)
+    # Diagnóstico del contenido de la página si no detecta tuits
+    page_text = page.inner_text("body")
+    if "Inicia sesión" in page_text or "Log in to X" in page_text:
+        print(f"⚠️ Sesión no reconocida en @{handle} (pide login). Revisa X_AUTH_TOKEN.", flush=True)
+        return []
+    if "Esta cuenta no existe" in page_text or "This account doesn’t exist" in page_text:
+        print(f"⚠️ La cuenta @{handle} no existe.", flush=True)
+        return []
 
-    articles = page.locator("article[data-testid='tweet']").all()[:5]
+    articles = page.locator("article").all()[:5]
     tweets = []
 
     for art in articles:
@@ -153,7 +156,7 @@ def scrape_tweets(page, handle):
             tweet_id = match_id.group(1) if match_id else href
 
             text_elem = art.locator("[data-testid='tweetText']").first
-            text = text_elem.inner_text() if text_elem.count() > 0 else ""
+            text = text_elem.inner_text() if text_elem.count() > 0 else art.inner_text()
 
             tweets.append({
                 "id": str(tweet_id),
@@ -171,37 +174,29 @@ def main():
 
     print(f"=== INICIANDO MONITOREO DIPLOMÁTICO: {len(SOURCES)} FUENTES ===", flush=True)
 
+    if not X_AUTH_TOKEN or not X_CT0:
+        print("❌ ERROR: X_AUTH_TOKEN o X_CT0 están vacíos en Secrets.", flush=True)
+        return
+
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
-                "--disable-setuid-sandbox"
-            ]
+            args=["--no-sandbox", "--disable-setuid-sandbox"]
         )
         context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            locale="es-ES",
-            viewport={"width": 1280, "height": 800}
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            locale="es-ES"
         )
 
-        # Inyectar cookies de sesión
+        # Inyectar cookies tanto para .x.com como para x.com
         context.add_cookies([
             {"name": "auth_token", "value": X_AUTH_TOKEN, "domain": ".x.com", "path": "/"},
-            {"name": "ct0", "value": X_CT0, "domain": ".x.com", "path": "/"}
+            {"name": "ct0", "value": X_CT0, "domain": ".x.com", "path": "/"},
+            {"name": "auth_token", "value": X_AUTH_TOKEN, "domain": "x.com", "path": "/"},
+            {"name": "ct0", "value": X_CT0, "domain": "x.com", "path": "/"}
         ])
 
         page = context.new_page()
-
-        # Solo bloquear imágenes y videos pesados (dejar estilos y scripts intactos)
-        def intercept_route(route):
-            if route.request.resource_type in ["image", "media"]:
-                route.abort()
-            else:
-                route.continue_()
-
-        page.route("**/*", intercept_route)
 
         for source in SOURCES:
             region = source["region"]
