@@ -104,6 +104,36 @@ def clean_html(raw_html):
     clean = re.sub(r"<[^>]+>", " ", raw_html)
     return " ".join(clean.split())
 
+def send_intro_message():
+    message = (
+        "🌐 <b>[GreciaWorldwide - Sistema de Monitoreo Diplomático]</b>\n\n"
+        "Canal configurado para la detección y alerta temprana en tiempo real sobre pronunciamientos y declaraciones de política exterior vinculadas a México.\n\n"
+        "📌 <b>Cobertura de Fuentes (44 cuentas oficiales):</b>\n"
+        "• <b>América del Norte y Latinoamérica:</b> Jefaturas de Estado y cancillerías de la región.\n"
+        "• <b>Europa, Asia y Potencias:</b> Líderes de la Unión Europea, potencias globales y portavocías ministeriales.\n"
+        "• <b>Organismos Multilaterales:</b> Portavocías de la ONU y OEA.\n"
+        "• <b>Cuerpo Diplomático acreditado en México:</b> Misiones diplomáticas de EE.UU., Canadá, UE, China, Rusia y Reino Unido.\n\n"
+        "🎯 <b>Criterios de Activación:</b>\n"
+        "• Menciones directas a México y a la titular de la presidencia.\n"
+        "• Referencias a la Secretaría de Relaciones Exteriores (SRE) y su cuerpo diplomático.\n"
+        "• Declaraciones internacionales sobre seguridad, cooperación y cárteles."
+    )
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True
+    }
+    try:
+        r = requests.post(url, json=payload, timeout=10)
+        if r.ok:
+            print("📢 Nota introductoria enviada con éxito al canal.", flush=True)
+        else:
+            print(f"❌ Error al enviar intro a Telegram ({r.status_code}): {r.text}", flush=True)
+    except Exception as e:
+        print(f"Error al enviar mensaje intro: {e}", flush=True)
+
 def send_telegram(region, role, author, text, link):
     safe_text = html.escape(text)
     message = (
@@ -167,6 +197,11 @@ def scrape_tweets(page, handle):
 def main():
     state = load_state()
     is_initial_run = (len(state) == 0)
+
+    # Enviar nota de introducción al canal en la primera ejecución
+    if not state.get("__intro_sent__"):
+        send_intro_message()
+        state["__intro_sent__"] = True
 
     print(f"=== INICIANDO MONITOREO DIPLOMÁTICO: {len(SOURCES)} FUENTES ===", flush=True)
 
